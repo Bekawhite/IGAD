@@ -16,6 +16,7 @@ cryptography
 optuna
 networkx
 torch
-torch_geometric.nn
+
+
 
 
