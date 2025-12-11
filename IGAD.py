@@ -1,51 +1,8 @@
 # ============================================================================
-# STREAMLIT PAGE CONFIGURATION - MUST BE FIRST
+# IGAD MALARIA DASHBOARD - COMPLETE ENTERPRISE SOLUTION
 # ============================================================================
+
 import streamlit as st
-
-st.set_page_config(
-    page_title="Malaria Forecasting System",
-    page_icon="🦟",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Add custom CSS
-st.markdown("""
-<style>
-.stButton > button {
-    width: 100%;
-    border-radius: 5px;
-    font-weight: bold;
-}
-.css-1d391kg {
-    padding: 1rem;
-}
-.sub-header {
-    color: #2E86AB;
-    border-bottom: 2px solid #2E86AB;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
-}
-.stMetric {
-    background-color: #f0f2f6;
-    padding: 15px;
-    border-radius: 10px;
-    border-left: 5px solid #2E86AB;
-}
-/* IGAD specific styling */
-.igad-country {
-    background-color: #e8f4f8;
-    padding: 10px;
-    border-radius: 5px;
-    margin: 5px 0;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ============================================================================
-# IMPORTS
-# ============================================================================
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -74,42 +31,64 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ============================================================================
-# NEW: ENTERPRISE SECURITY IMPORTS
+# PAGE CONFIGURATION - MUST BE FIRST
 # ============================================================================
-import hashlib
-import hmac
-import secrets
-from cryptography.fernet import Fernet
-import uuid
-import time
-from functools import wraps
+st.set_page_config(
+    page_title="IGAD Malaria Forecasting System",
+    page_icon="🦟",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Add custom CSS
+st.markdown("""
+<style>
+.stButton > button {
+    width: 100%;
+    border-radius: 5px;
+    font-weight: bold;
+}
+.css-1d391kg {
+    padding: 1rem;
+}
+.sub-header {
+    color: #2E86AB;
+    border-bottom: 2px solid #2E86AB;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+.stMetric {
+    background-color: #f0f2f6;
+    padding: 15px;
+    border-radius: 10px;
+    border-left: 5px solid #2E86AB;
+}
+.igad-country {
+    background-color: #e8f4f8;
+    padding: 10px;
+    border-radius: 5px;
+    margin: 5px 0;
+}
+.igad-header {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+.sidebar-header {
+    background: linear-gradient(135deg, #2E86AB 0%, #2E86AB 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 5px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ============================================================================
-# NEW: ADVANCED ML IMPORTS
-# ============================================================================
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-import shap
-import optuna
-import networkx as nx
-import torch
-import torch.nn as nn
-from torch_geometric.nn import GCNConv
-import xgboost as xgb
-import lightgbm as lgb
-
-# ============================================================================
-# NEW: OFFLINE/MOBILE IMPORTS
-# ============================================================================
-import sqlite3
-from pathlib import Path
-import pickle
-import zipfile
-import tempfile
-
-# ============================================================================
-# NEW: IGAD MALARIA TRENDS DASHBOARD MODULE
+# IGAD DATA VALIDATION MODULE
 # ============================================================================
 
 class IGADDataValidator:
@@ -270,6 +249,36 @@ class IGADDataProcessor:
         
         return map_data
 
+    @staticmethod
+    def prepare_time_series_data(df, country_codes=None):
+        """Prepare time series data for forecasting"""
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Filter for malaria cases
+        malaria_df = IGADDataProcessor.identify_malaria_cases(df)
+        if malaria_df.empty:
+            return pd.DataFrame()
+        
+        # Filter for country-level data
+        country_df = IGADDataProcessor.filter_country_level_data(malaria_df)
+        if country_df.empty:
+            return pd.DataFrame()
+        
+        # Filter by country if specified
+        if country_codes:
+            country_df = country_df[country_df['ISO3'].isin(country_codes)]
+        
+        # Pivot to get time series
+        time_series = country_df.pivot_table(
+            index='Year',
+            columns='ISO3',
+            values='Value',
+            aggfunc='sum'
+        ).fillna(0)
+        
+        return time_series
+
 class IGADVisualizations:
     """Create visualizations for IGAD malaria dashboard"""
     
@@ -375,6 +384,90 @@ class IGADVisualizations:
         return fig
     
     @staticmethod
+    def create_time_series_chart(time_series_data, selected_countries=None):
+        """Create time series chart for malaria cases"""
+        if time_series_data.empty:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No time series data available",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=14)
+            )
+            fig.update_layout(
+                title="Malaria Cases Over Time - No Data",
+                height=400
+            )
+            return fig
+        
+        fig = go.Figure()
+        
+        # Plot selected countries or all countries
+        countries_to_plot = selected_countries if selected_countries else time_series_data.columns
+        
+        for country in countries_to_plot:
+            if country in time_series_data.columns:
+                fig.add_trace(go.Scatter(
+                    x=time_series_data.index,
+                    y=time_series_data[country],
+                    mode='lines+markers',
+                    name=country,
+                    hovertemplate='<b>%{fullData.name}</b><br>Year: %{x}<br>Cases: %{y:,}<extra></extra>'
+                ))
+        
+        fig.update_layout(
+            title="Malaria Cases Over Time",
+            xaxis_title="Year",
+            yaxis_title="Number of Cases",
+            hovermode='x unified',
+            height=500,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
+        )
+        
+        return fig
+    
+    @staticmethod
+    def create_heatmap_chart(time_series_data):
+        """Create heatmap of cases by country and year"""
+        if time_series_data.empty:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for heatmap",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=14)
+            )
+            return fig
+        
+        # Prepare data for heatmap
+        heatmap_data = time_series_data.copy()
+        
+        # Create heatmap
+        fig = go.Figure(data=go.Heatmap(
+            z=heatmap_data.values.T,
+            x=heatmap_data.index,
+            y=heatmap_data.columns,
+            colorscale='Viridis',
+            hoverongaps=False,
+            hovertemplate='Country: %{y}<br>Year: %{x}<br>Cases: %{z:,}<extra></extra>'
+        ))
+        
+        fig.update_layout(
+            title="Malaria Cases Heatmap (Country × Year)",
+            xaxis_title="Year",
+            yaxis_title="Country",
+            height=500
+        )
+        
+        return fig
+    
+    @staticmethod
     def create_data_summary(validation_results, df):
         """Create data summary panel"""
         summary_data = {
@@ -398,30 +491,149 @@ class IGADVisualizations:
         
         return summary_data
 
-# Initialize IGAD components
-igad_validator = IGADDataValidator()
-igad_processor = IGADDataProcessor()
-igad_viz = IGADVisualizations()
+# ============================================================================
+# FORECASTING MODULE
+# ============================================================================
+
+class IGADForecaster:
+    """Forecasting module for IGAD malaria cases"""
+    
+    @staticmethod
+    def prepare_forecast_data(time_series_data, n_years=3):
+        """Prepare data for forecasting"""
+        if time_series_data.empty or len(time_series_data) < 5:
+            return None, None, None
+        
+        # Ensure we have consecutive years
+        years = sorted(time_series_data.index)
+        X = np.array(years).reshape(-1, 1)
+        forecasts = {}
+        
+        for country in time_series_data.columns:
+            y = time_series_data[country].values
+            
+            # Simple linear regression for forecasting
+            coeffs = np.polyfit(years, y, 1)
+            poly = np.poly1d(coeffs)
+            
+            # Generate future years
+            future_years = np.arange(years[-1] + 1, years[-1] + n_years + 1)
+            future_cases = poly(future_years)
+            
+            # Ensure non-negative cases
+            future_cases = np.maximum(future_cases, 0)
+            
+            forecasts[country] = {
+                'past_years': years,
+                'past_cases': y.tolist(),
+                'future_years': future_years.tolist(),
+                'future_cases': future_cases.tolist(),
+                'trend': 'increasing' if coeffs[0] > 0 else 'decreasing',
+                'growth_rate': coeffs[0]
+            }
+        
+        return forecasts
+    
+    @staticmethod
+    def create_forecast_chart(forecast_data, selected_countries=None):
+        """Create forecast visualization"""
+        if not forecast_data:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No forecast data available",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=14)
+            )
+            return fig
+        
+        fig = go.Figure()
+        
+        countries_to_plot = selected_countries if selected_countries else list(forecast_data.keys())
+        
+        for country in countries_to_plot:
+            if country in forecast_data:
+                data = forecast_data[country]
+                
+                # Historical data
+                fig.add_trace(go.Scatter(
+                    x=data['past_years'],
+                    y=data['past_cases'],
+                    mode='lines+markers',
+                    name=f"{country} (Historical)",
+                    line=dict(width=2),
+                    marker=dict(size=6)
+                ))
+                
+                # Forecast data
+                fig.add_trace(go.Scatter(
+                    x=data['future_years'],
+                    y=data['future_cases'],
+                    mode='lines+markers',
+                    name=f"{country} (Forecast)",
+                    line=dict(width=2, dash='dash'),
+                    marker=dict(size=6, symbol='diamond')
+                ))
+        
+        fig.update_layout(
+            title="Malaria Cases Forecast (Next 3 Years)",
+            xaxis_title="Year",
+            yaxis_title="Number of Cases",
+            hovermode='x unified',
+            height=500,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
+        )
+        
+        return fig
+
+# ============================================================================
+# MAIN APP
+# ============================================================================
 
 def show_igad_dashboard():
     """Display the IGAD Malaria Trends Dashboard"""
     
-    st.markdown('<h2 class="sub-header">🦟 IGAD Malaria Trends Executive Dashboard</h2>', unsafe_allow_html=True)
+    # Initialize session state
+    if 'igad_data' not in st.session_state:
+        st.session_state.igad_data = None
+    if 'igad_validation' not in st.session_state:
+        st.session_state.igad_validation = {'is_valid': False, 'messages': []}
+    if 'selected_year' not in st.session_state:
+        st.session_state.selected_year = None
+    if 'selected_countries' not in st.session_state:
+        st.session_state.selected_countries = []
+    if 'show_forecast' not in st.session_state:
+        st.session_state.show_forecast = False
+    if 'forecast_data' not in st.session_state:
+        st.session_state.forecast_data = None
     
-    st.markdown("""
-    **Monitor and analyze malaria trends across IGAD member states.**  
-    This dashboard provides real-time insights into malaria case distributions for data-driven decision-making.
+    # Initialize components
+    igad_validator = IGADDataValidator()
+    igad_processor = IGADDataProcessor()
+    igad_viz = IGADVisualizations()
+    forecaster = IGADForecaster()
     
-    **Target Countries:** Djibouti (DJI), Ethiopia (ETH), Kenya (KEN), Somalia (SOM), South Sudan (SSD), Sudan (SDN), Uganda (UGA)
-    """)
+    # Header
+    st.markdown('<div class="igad-header">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.title("🦟 IGAD Malaria Surveillance Dashboard")
+        st.markdown("**Intergovernmental Authority on Development - Regional Malaria Control Initiative**")
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # Create two columns for layout
+    # Main content layout
     col1, col2 = st.columns([2, 1])
     
     with col1:
         # Main visualization area
         if st.session_state.get('igad_data') is not None and st.session_state.get('igad_validation', {}).get('is_valid', False):
-            # Prepare data for visualizations
+            # Prepare data
             bar_data = igad_processor.prepare_bar_chart_data(
                 st.session_state.igad_data, 
                 st.session_state.get('selected_year')
@@ -430,15 +642,17 @@ def show_igad_dashboard():
                 st.session_state.igad_data,
                 st.session_state.get('selected_year')
             )
+            time_series_data = igad_processor.prepare_time_series_data(
+                st.session_state.igad_data
+            )
             
-            # Create visualizations
-            tab1, tab2 = st.tabs(["📊 Bar Chart", "🗺️ Geographic Distribution"])
+            # Create tabs for different visualizations
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Bar Chart", "🗺️ Geographic Distribution", "📈 Time Series", "🔥 Heatmap"])
             
             with tab1:
                 bar_chart = igad_viz.create_bar_chart(bar_data, st.session_state.get('selected_year'))
-                st.plotly_chart(bar_chart, use_container_width=True, key="igad_bar_chart")
+                st.plotly_chart(bar_chart, use_container_width=True)
                 
-                # Data table
                 with st.expander("View Data Table"):
                     if not bar_data.empty:
                         st.dataframe(
@@ -452,9 +666,8 @@ def show_igad_dashboard():
             
             with tab2:
                 choropleth_map = igad_viz.create_choropleth_map(map_data, st.session_state.get('selected_year'))
-                st.plotly_chart(choropleth_map, use_container_width=True, key="igad_map")
+                st.plotly_chart(choropleth_map, use_container_width=True)
                 
-                # Map legend
                 st.markdown("""
                 **Color Legend:**
                 - 🟢 Light Green: Low malaria cases
@@ -462,6 +675,67 @@ def show_igad_dashboard():
                 - 🔴 Dark Red: High malaria cases
                 - ⚫ Gray: No data available
                 """)
+            
+            with tab3:
+                if not time_series_data.empty:
+                    time_series_chart = igad_viz.create_time_series_chart(
+                        time_series_data, 
+                        st.session_state.get('selected_countries')
+                    )
+                    st.plotly_chart(time_series_chart, use_container_width=True)
+                    
+                    # Country selector for time series
+                    available_countries = list(time_series_data.columns)
+                    selected_countries = st.multiselect(
+                        "Select countries for time series:",
+                        options=available_countries,
+                        default=available_countries[:3] if available_countries else [],
+                        key="ts_country_select"
+                    )
+                    st.session_state.selected_countries = selected_countries
+                else:
+                    st.info("No time series data available")
+            
+            with tab4:
+                if not time_series_data.empty:
+                    heatmap = igad_viz.create_heatmap_chart(time_series_data)
+                    st.plotly_chart(heatmap, use_container_width=True)
+                else:
+                    st.info("No data available for heatmap")
+            
+            # Forecasting section
+            st.markdown("---")
+            st.markdown("### 🔮 Forecasting")
+            
+            if st.button("Generate 3-Year Forecast", key="forecast_button"):
+                if not time_series_data.empty:
+                    with st.spinner("Generating forecasts..."):
+                        st.session_state.forecast_data = forecaster.prepare_forecast_data(time_series_data)
+                        st.session_state.show_forecast = True
+                else:
+                    st.warning("Insufficient data for forecasting")
+            
+            if st.session_state.show_forecast and st.session_state.forecast_data:
+                forecast_chart = forecaster.create_forecast_chart(
+                    st.session_state.forecast_data,
+                    st.session_state.get('selected_countries')
+                )
+                st.plotly_chart(forecast_chart, use_container_width=True)
+                
+                # Forecast insights
+                st.subheader("📈 Forecast Insights")
+                insights_cols = st.columns(3)
+                
+                for idx, country in enumerate(st.session_state.forecast_data.keys()):
+                    if idx < 3:  # Show first 3 countries
+                        data = st.session_state.forecast_data[country]
+                        with insights_cols[idx]:
+                            trend_icon = "📈" if data['trend'] == 'increasing' else "📉"
+                            st.metric(
+                                label=f"{country} Trend",
+                                value=trend_icon,
+                                delta=f"{abs(data['growth_rate']):.1f} cases/year"
+                            )
         
         else:
             # Show upload instructions
@@ -491,13 +765,15 @@ def show_igad_dashboard():
                 
                 # Provide sample download
                 sample_data = pd.DataFrame({
-                    'ISO3': ['UGA', 'KEN', 'ETH'],
-                    'Name': ['Uganda', 'Kenya', 'Ethiopia'],
-                    'Admin Level': [0, 0, 0],
-                    'Metric': ['Confirmed malaria cases', 'Suspected cases', 'Clinical cases'],
-                    'Units': ['cases', 'cases', 'cases'],
-                    'Year': [2023, 2023, 2023],
-                    'Value': [1250000, 850000, 2100000]
+                    'ISO3': ['UGA', 'KEN', 'ETH', 'SDN', 'SSD', 'SOM', 'DJI'],
+                    'Name': ['Uganda', 'Kenya', 'Ethiopia', 'Sudan', 'South Sudan', 'Somalia', 'Djibouti'],
+                    'Admin Level': [0, 0, 0, 0, 0, 0, 0],
+                    'Metric': ['Confirmed malaria cases', 'Confirmed malaria cases', 'Confirmed malaria cases',
+                              'Confirmed malaria cases', 'Confirmed malaria cases', 'Confirmed malaria cases',
+                              'Confirmed malaria cases'],
+                    'Units': ['cases', 'cases', 'cases', 'cases', 'cases', 'cases', 'cases'],
+                    'Year': [2023, 2023, 2023, 2023, 2023, 2023, 2023],
+                    'Value': [1250000, 850000, 2100000, 950000, 650000, 450000, 15000]
                 })
                 
                 csv = sample_data.to_csv(index=False)
@@ -509,11 +785,13 @@ def show_igad_dashboard():
                 )
     
     with col2:
-        # Sidebar-like controls in the right column
-        st.markdown("### 📁 IGAD Data Upload")
+        # Sidebar-like controls
+        st.markdown('<div class="sidebar-header">', unsafe_allow_html=True)
+        st.markdown("### 📁 Data Management")
+        st.markdown('</div>', unsafe_allow_html=True)
         
         uploaded_file = st.file_uploader(
-            "Choose a CSV file",
+            "Upload IGAD CSV File",
             type=['csv'],
             help="Upload CSV with exact schema: ISO3, Name, Admin Level, Metric, Units, Year, Value",
             key="igad_file_uploader"
@@ -609,8 +887,17 @@ def show_igad_dashboard():
                     if len(year_data) > 0:
                         max_idx = year_data['Value'].idxmax()
                         max_country = year_data.loc[max_idx, 'Name'] if pd.notna(max_idx) else "N/A"
+                        max_cases = year_data.loc[max_idx, 'Value'] if pd.notna(max_idx) else 0
                     else:
                         max_country = "N/A"
+                        max_cases = 0
+                    
+                    # Lowest burden country
+                    if len(year_data) > 1:
+                        min_idx = year_data['Value'].idxmin()
+                        min_country = year_data.loc[min_idx, 'Name'] if pd.notna(min_idx) else "N/A"
+                    else:
+                        min_country = "N/A"
                     
                     # Total cases for selected year
                     total_cases = year_data['Value'].sum()
@@ -618,429 +905,194 @@ def show_igad_dashboard():
                     # Number of countries with data
                     countries_with_data = year_data['ISO3'].nunique()
                     
-                    st.metric("Total Cases (Selected Year)", f"{total_cases:,}")
+                    st.metric("Total Cases", f"{total_cases:,}")
+                    st.metric("Highest Burden", max_country, f"{max_cases:,}")
                     st.metric("Countries with Data", countries_with_data)
-                    st.metric("Highest Burden Country", max_country)
-
-# ============================================================================
-# CORE APP CLASSES (SIMPLIFIED FOR IGAD INTEGRATION)
-# ============================================================================
-
-class UserPermissions:
-    """User permissions and role management"""
     
-    ROLES = {
-        'field_worker': 'Field Worker',
-        'district_officer': 'District Officer', 
-        'regional_manager': 'Regional Manager',
-        'national_director': 'National Director',
-        'data_scientist': 'Data Scientist',
-        'public_health': 'Public Health Officer'
-    }
+    # Additional analysis section
+    st.markdown("---")
+    st.markdown("### 🔬 Advanced Analysis")
     
-    @staticmethod
-    def get_role_name(role_code):
-        """Get display name for role code"""
-        return UserPermissions.ROLES.get(role_code, role_code)
-
-class DataQualityMonitor:
-    """Monitor data quality and integrity"""
-    
-    @staticmethod
-    def check_data_quality(data):
-        """Check quality of uploaded data"""
-        if data is None:
-            return {'status': 'error', 'message': 'No data provided'}
+    if st.session_state.get('igad_data') is not None and st.session_state.get('igad_validation', {}).get('is_valid', False):
+        col1, col2, col3 = st.columns(3)
         
-        checks = {
-            'row_count': len(data),
-            'column_count': len(data.columns),
-            'missing_values': data.isnull().sum().sum(),
-            'duplicates': data.duplicated().sum()
-        }
+        with col1:
+            if st.button("📥 Export Analysis", use_container_width=True):
+                # Prepare data for export
+                if st.session_state.forecast_data:
+                    export_data = {
+                        'metadata': {
+                            'export_date': datetime.now().isoformat(),
+                            'data_source': 'IGAD Dashboard',
+                            'selected_year': st.session_state.selected_year
+                        },
+                        'summary': igad_viz.create_data_summary(
+                            st.session_state.igad_validation,
+                            st.session_state.igad_data
+                        ),
+                        'forecasts': st.session_state.forecast_data
+                    }
+                    
+                    json_str = json.dumps(export_data, indent=2)
+                    st.download_button(
+                        label="Download JSON Export",
+                        data=json_str,
+                        file_name=f"igad_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json",
+                        key="export_json"
+                    )
         
-        return {'status': 'success', 'checks': checks}
-
-class AlertSystem:
-    """System for generating and managing alerts"""
-    
-    @staticmethod
-    def generate_alerts(data):
-        """Generate alerts based on data analysis"""
-        alerts = []
+        with col2:
+            if st.button("📊 Generate Report", use_container_width=True):
+                st.info("Report generation feature would create a comprehensive PDF report here.")
         
-        if data is not None and 'malaria_cases' in data.columns:
-            # Example alert logic
-            avg_cases = data['malaria_cases'].mean()
-            latest_cases = data['malaria_cases'].iloc[-1] if len(data) > 0 else 0
-            
-            if latest_cases > avg_cases * 1.5:
-                alerts.append({
-                    'level': 'HIGH',
-                    'message': f'Malaria cases spike detected: {latest_cases} cases (average: {avg_cases:.1f})',
-                    'timestamp': datetime.now().isoformat(),
-                    'type': 'spike_alert'
-                })
-        
-        return alerts
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def generate_synthetic_data():
-    """Generate synthetic malaria data for demonstration"""
-    dates = pd.date_range(start='2020-01-01', end='2024-01-01', freq='M')
-    
-    # Base pattern with seasonality
-    base_cases = 1000
-    seasonal_factor = 500 * np.sin(2 * np.pi * np.arange(len(dates)) / 12)
-    trend = 0.5 * np.arange(len(dates))
-    noise = np.random.normal(0, 100, len(dates))
-    
-    cases = base_cases + seasonal_factor + trend + noise
-    cases = np.maximum(cases, 0)  # No negative cases
-    
-    data = pd.DataFrame({
-        'date': dates,
-        'malaria_cases': cases.astype(int),
-        'temperature': np.random.uniform(25, 35, len(dates)),
-        'rainfall': np.random.exponential(50, len(dates)),
-        'humidity': np.random.uniform(60, 90, len(dates)),
-        'nddi': np.random.uniform(0.3, 0.7, len(dates)),
-        'llin_coverage': np.random.uniform(30, 80, len(dates)),
-        'irs_coverage': np.random.uniform(20, 60, len(dates)),
-        'population': np.random.uniform(100000, 500000, len(dates))
-    })
-    
-    return data
-
-def train_all_models(data):
-    """Train all machine learning models"""
-    if data is None:
-        return {}
-    
-    # Prepare features
-    features = ['temperature', 'rainfall', 'humidity', 'nddi', 'llin_coverage', 'irs_coverage']
-    features = [f for f in features if f in data.columns]
-    
-    X = data[features].values
-    y = data['malaria_cases'].values
-    
-    # Split data
-    split_idx = int(len(X) * 0.8)
-    X_train, X_test = X[:split_idx], X[split_idx:]
-    y_train, y_test = y[:split_idx], y[split_idx:]
-    
-    # Scale features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    # Train models
-    models = {}
-    
-    # Random Forest
-    rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
-    rf_model.fit(X_train_scaled, y_train)
-    rf_pred = rf_model.predict(X_test_scaled)
-    
-    # Gradient Boosting
-    gb_model = GradientBoostingRegressor(n_estimators=100, random_state=42)
-    gb_model.fit(X_train_scaled, y_train)
-    gb_pred = gb_model.predict(X_test_scaled)
-    
-    # Calculate metrics
-    models['rf_model'] = rf_model
-    models['gb_model'] = gb_model
-    models['rf_rmse'] = np.sqrt(mean_squared_error(y_test, rf_pred))
-    models['gb_rmse'] = np.sqrt(mean_squared_error(y_test, gb_pred))
-    models['rf_mae'] = mean_absolute_error(y_test, rf_pred)
-    models['gb_mae'] = mean_absolute_error(y_test, gb_pred)
-    models['rf_r2'] = r2_score(y_test, rf_pred)
-    models['gb_r2'] = r2_score(y_test, gb_pred)
-    models['scaler'] = scaler
-    models['feature_names'] = features
-    
-    return models
-
-# ============================================================================
-# MAIN APP
-# ============================================================================
+        with col3:
+            if st.button("🔄 Reset Dashboard", use_container_width=True):
+                for key in ['igad_data', 'igad_validation', 'selected_year', 'selected_countries', 
+                          'show_forecast', 'forecast_data']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.rerun()
 
 def main():
     """Main application function"""
     
-    # Initialize session state variables
-    if 'data' not in st.session_state:
-        st.session_state.data = None
-    if 'data_generated' not in st.session_state:
-        st.session_state.data_generated = False
-    if 'models_trained' not in st.session_state:
-        st.session_state.models_trained = False
-    if 'model_results' not in st.session_state:
-        st.session_state.model_results = {}
-    if 'alerts' not in st.session_state:
-        st.session_state.alerts = []
-    if 'user_role' not in st.session_state:
-        st.session_state.user_role = 'field_worker'
-    if 'show_igad' not in st.session_state:
-        st.session_state.show_igad = False
-    if 'igad_data' not in st.session_state:
-        st.session_state.igad_data = None
-    if 'igad_validation' not in st.session_state:
-        st.session_state.igad_validation = {'is_valid': False, 'messages': []}
-    if 'selected_year' not in st.session_state:
-        st.session_state.selected_year = None
-    
     # Sidebar navigation
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/3050/3050525.png", width=100)
-        st.title("🦟 Malaria Forecasting System")
-        st.markdown("**Enterprise-Grade National Control System**")
-        st.markdown("---")
+        st.markdown('<div class="sidebar-header">', unsafe_allow_html=True)
+        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/IGAD_Logo.svg/1200px-IGAD_Logo.svg.png", 
+                width=150)
+        st.markdown("### IGAD Malaria Dashboard")
+        st.markdown("Intergovernmental Authority on Development")
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # Navigation selection
+        st.markdown("---")
         st.markdown("### 🧭 Navigation")
-        app_mode = st.radio(
+        
+        # Navigation options
+        nav_option = st.radio(
             "Select Dashboard",
-            ["🏠 Main Dashboard", "📈 IGAD Dashboard"],
+            ["🏠 Main Dashboard", "📈 Analytics", "🔮 Forecasting", "⚙️ Settings"],
             index=0
         )
         
-        if app_mode == "📈 IGAD Dashboard":
-            st.session_state.show_igad = True
-        else:
-            st.session_state.show_igad = False
+        st.markdown("---")
+        st.markdown("### ℹ️ About IGAD")
         
-        # User role selection
-        st.markdown("### 👤 User Role")
-        user_role = st.selectbox(
-            "Select your role",
-            options=list(UserPermissions.ROLES.keys()),
-            format_func=lambda x: UserPermissions.get_role_name(x),
-            key="user_role_select"
-        )
-        st.session_state.user_role = user_role
+        st.info("""
+        The Intergovernmental Authority on Development (IGAD) is an eight-country 
+        trade bloc in Africa. It includes governments from the Horn of Africa, 
+        Nile Valley and the African Great Lakes.
         
-        # Data management for Main Dashboard
-        if not st.session_state.show_igad:
-            st.markdown("---")
-            st.markdown("### 📊 Data Management")
-            
-            data_option = st.radio(
-                "Choose data source:",
-                ["Generate Synthetic Data", "Upload CSV/Excel"],
-                index=0
-            )
-            
-            if st.button("📥 Load Data", use_container_width=True):
-                with st.spinner("Loading data..."):
-                    if data_option == "Generate Synthetic Data":
-                        st.session_state.data = generate_synthetic_data()
-                        st.session_state.data_generated = True
-                        st.session_state.models_trained = False
-                        st.success("Synthetic data generated successfully!")
-                    elif data_option == "Upload CSV/Excel":
-                        uploaded_file = st.file_uploader(
-                            "Choose a CSV or Excel file", 
-                            type=['csv', 'xlsx', 'xls'],
-                            key="main_data_upload"
-                        )
-                        if uploaded_file is not None:
-                            try:
-                                if uploaded_file.name.endswith('.csv'):
-                                    data = pd.read_csv(uploaded_file)
-                                else:
-                                    data = pd.read_excel(uploaded_file)
-                                st.session_state.data = data
-                                st.session_state.data_generated = True
-                                st.session_state.models_trained = False
-                                st.success("Data uploaded successfully!")
-                            except Exception as e:
-                                st.error(f"Error reading file: {str(e)}")
-                
-                # Check data quality and generate alerts
-                if st.session_state.data is not None:
-                    DataQualityMonitor.check_data_quality(st.session_state.data)
-                    st.session_state.alerts = AlertSystem.generate_alerts(st.session_state.data)
-            
-            if st.session_state.data_generated and st.button("🤖 Train Models", use_container_width=True):
-                with st.spinner("Training models..."):
-                    st.session_state.model_results = train_all_models(st.session_state.data)
-                    st.session_state.models_trained = True
-                    st.success("Models trained successfully!")
+        **Member States:**
+        - Djibouti (DJI)
+        - Ethiopia (ETH)
+        - Kenya (KEN)
+        - Somalia (SOM)
+        - South Sudan (SSD)
+        - Sudan (SDN)
+        - Uganda (UGA)
+        """)
+        
+        st.markdown("---")
+        st.markdown("### 📞 Contact & Support")
+        
+        st.write("**Technical Support:**")
+        st.write("support@igad-malaria.org")
+        
+        st.write("**Emergency Contact:**")
+        st.write("+254 20 123 4567")
         
         # System status
         st.markdown("---")
-        st.markdown("### 📈 System Status")
+        st.markdown("### 🔄 System Status")
         
-        if st.session_state.data is not None:
-            st.metric("Data Records", len(st.session_state.data))
+        if 'igad_data' in st.session_state and st.session_state.igad_data is not None:
+            data_status = "✅ Loaded"
+            rows = len(st.session_state.igad_data)
+        else:
+            data_status = "❌ Not Loaded"
+            rows = 0
         
-        if st.session_state.alerts:
-            alert_count = len([a for a in st.session_state.alerts if a['level'] in ['HIGH']])
-            if alert_count > 0:
-                st.metric("Active Alerts", alert_count, delta="Requires attention")
-    
-    # Main content area
-    if st.session_state.show_igad:
-        # Show IGAD Dashboard
+        st.metric("Data Status", data_status, f"{rows} rows")
+        
+        # Version info
+        st.markdown("---")
+        st.caption("Version 1.0.0 | IGAD Malaria Control Initiative")
+
+    # Main content based on navigation
+    if nav_option == "🏠 Main Dashboard":
         show_igad_dashboard()
-    else:
-        # Show Main Dashboard
-        st.title("🏠 National Malaria Forecasting & Control System")
-        st.markdown("""
-        **Enterprise-Grade Platform for National Malaria Control Programs**
+    elif nav_option == "📈 Analytics":
+        st.title("📈 Advanced Analytics")
+        st.info("Advanced analytics features coming soon!")
         
-        This system integrates advanced analytics and machine learning for comprehensive malaria surveillance and control.
-        """)
-        
-        # Create tabs for Main Dashboard
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📈 Overview", "🚨 Alerts & Response", "📊 Performance", "🔮 Forecast"
-        ])
-        
-        with tab1:
-            st.markdown('<h2 class="sub-header">📈 System Overview</h2>', unsafe_allow_html=True)
+        if st.session_state.get('igad_data') is not None:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Total Records", len(st.session_state.igad_data))
+                st.metric("Years of Data", st.session_state.igad_data['Year'].nunique())
+            with col2:
+                st.metric("Countries", st.session_state.igad_data['ISO3'].nunique())
+                st.metric("Metrics", st.session_state.igad_data['Metric'].nunique())
             
-            if st.session_state.data is not None:
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    total_cases = st.session_state.data['malaria_cases'].sum()
-                    st.metric("Total Cases", f"{total_cases:,}")
-                with col2:
-                    avg_temp = st.session_state.data['temperature'].mean()
-                    st.metric("Avg Temperature", f"{avg_temp:.1f}°C")
-                with col3:
-                    avg_rainfall = st.session_state.data['rainfall'].mean()
-                    st.metric("Avg Rainfall", f"{avg_rainfall:.1f} mm")
-                with col4:
-                    avg_nddi = st.session_state.data['nddi'].mean()
-                    st.metric("Avg NDDI", f"{avg_nddi:.3f}")
-                
-                # Data preview
-                st.subheader("📊 Data Preview")
-                st.dataframe(st.session_state.data.head(10), use_container_width=True)
-                
-                # Basic visualization
-                st.subheader("📈 Malaria Cases Over Time")
-                fig, ax = plt.subplots(figsize=(12, 6))
-                ax.plot(st.session_state.data['date'], st.session_state.data['malaria_cases'], 
-                       marker='o', markersize=4, linewidth=2)
-                ax.set_xlabel('Date')
-                ax.set_ylabel('Malaria Cases')
-                ax.set_title('Malaria Cases Over Time')
-                ax.grid(True, alpha=0.3)
-                plt.xticks(rotation=45)
+            # Show sample of advanced analytics
+            st.subheader("Data Distribution")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            if 'Value' in st.session_state.igad_data.columns:
+                st.session_state.igad_data['Value'].hist(bins=30, ax=ax, edgecolor='black')
+                ax.set_xlabel('Number of Cases')
+                ax.set_ylabel('Frequency')
+                ax.set_title('Distribution of Malaria Cases')
                 st.pyplot(fig)
-            else:
-                st.info("Please load data from the sidebar to see the overview")
+    
+    elif nav_option == "🔮 Forecasting":
+        st.title("🔮 Forecasting Models")
+        st.info("Advanced forecasting models coming soon!")
         
-        with tab2:
-            st.markdown('<h2 class="sub-header">🚨 Alerts & Response System</h2>', unsafe_allow_html=True)
+        if st.session_state.get('igad_data') is not None:
+            st.subheader("Available Forecasting Methods")
             
-            if st.session_state.alerts:
-                st.warning(f"⚠️ **{len(st.session_state.alerts)} Active Alerts**")
-                
-                for alert in st.session_state.alerts:
-                    if alert['level'] == 'HIGH':
-                        st.error(f"**{alert['level']}**: {alert['message']}")
-                    elif alert['level'] == 'MEDIUM':
-                        st.warning(f"**{alert['level']}**: {alert['message']}")
-                    else:
-                        st.info(f"**{alert['level']}**: {alert['message']}")
-                
-                st.subheader("Response Actions")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    if st.button("📋 Generate Response Plan", use_container_width=True):
-                        st.success("Response plan generated!")
-                        st.write("1. Mobilize rapid response team")
-                        st.write("2. Distribute additional bed nets")
-                        st.write("3. Increase testing in affected areas")
-                        st.write("4. Alert nearby health facilities")
-                with col2:
-                    if st.button("📞 Contact Emergency Team", use_container_width=True):
-                        st.success("Emergency team notified!")
-                with col3:
-                    if st.button("📊 Allocate Resources", use_container_width=True):
-                        st.success("Resource allocation optimized!")
-            else:
-                st.success("✅ No active alerts")
-                st.info("System is monitoring for potential outbreaks...")
+            methods = [
+                ("Linear Regression", "Simple trend-based forecasting"),
+                ("Time Series ARIMA", "Advanced time series analysis"),
+                ("Machine Learning", "Random Forest and Gradient Boosting"),
+                ("Ensemble Methods", "Combination of multiple models")
+            ]
+            
+            for method, description in methods:
+                with st.expander(f"{method}"):
+                    st.write(description)
+                    st.button(f"Train {method}", key=f"train_{method}")
+    
+    elif nav_option == "⚙️ Settings":
+        st.title("⚙️ System Settings")
         
-        with tab3:
-            st.markdown('<h2 class="sub-header">📊 Model Performance</h2>', unsafe_allow_html=True)
-            
-            if st.session_state.models_trained:
-                st.success("✅ Models trained successfully!")
-                
-                # Display model performance
-                results = st.session_state.model_results
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("RF RMSE", f"{results.get('rf_rmse', 0):.1f}")
-                with col2:
-                    st.metric("GB RMSE", f"{results.get('gb_rmse', 0):.1f}")
-                with col3:
-                    st.metric("RF R² Score", f"{results.get('rf_r2', 0):.3f}")
-                with col4:
-                    st.metric("GB R² Score", f"{results.get('gb_r2', 0):.3f}")
-                
-                # Feature importance
-                st.subheader("🔍 Feature Importance")
-                if 'rf_model' in results:
-                    importances = results['rf_model'].feature_importances_
-                    features = results.get('feature_names', ['Feature 1', 'Feature 2', 'Feature 3'])
-                    
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    ax.barh(features, importances)
-                    ax.set_xlabel('Importance')
-                    ax.set_title('Random Forest Feature Importance')
-                    ax.grid(True, alpha=0.3)
-                    st.pyplot(fig)
-            else:
-                st.info("Please train models from the sidebar to see performance metrics")
+        st.subheader("Dashboard Configuration")
         
-        with tab4:
-            st.markdown('<h2 class="sub-header">🔮 Generate Forecast</h2>', unsafe_allow_html=True)
-            
-            if st.session_state.models_trained:
-                if st.button("Generate 6-Month Forecast"):
-                    with st.spinner("Generating forecast..."):
-                        # Simulate forecast
-                        future_dates = pd.date_range(
-                            start=st.session_state.data['date'].iloc[-1] + timedelta(days=30),
-                            periods=6,
-                            freq='M'
-                        )
-                        
-                        forecast_data = pd.DataFrame({
-                            'date': future_dates,
-                            'predicted_cases': np.random.randint(800, 1500, 6),
-                            'lower_bound': np.random.randint(600, 1200, 6),
-                            'upper_bound': np.random.randint(1000, 1800, 6)
-                        })
-                        
-                        fig, ax = plt.subplots(figsize=(12, 6))
-                        ax.plot(st.session_state.data['date'], st.session_state.data['malaria_cases'], 
-                               label='Historical', marker='o')
-                        ax.plot(forecast_data['date'], forecast_data['predicted_cases'], 
-                               label='Forecast', marker='s', linestyle='--')
-                        ax.fill_between(forecast_data['date'], 
-                                       forecast_data['lower_bound'], 
-                                       forecast_data['upper_bound'], 
-                                       alpha=0.3, label='Confidence Interval')
-                        ax.set_xlabel('Date')
-                        ax.set_ylabel('Malaria Cases')
-                        ax.set_title('6-Month Malaria Forecast')
-                        ax.legend()
-                        ax.grid(True, alpha=0.3)
-                        plt.xticks(rotation=45)
-                        st.pyplot(fig)
-            else:
-                st.info("Please train models first to generate forecasts")
+        col1, col2 = st.columns(2)
+        with col1:
+            theme = st.selectbox("Theme", ["Light", "Dark", "Auto"])
+            refresh_rate = st.selectbox("Auto-refresh", ["Off", "5 minutes", "15 minutes", "30 minutes"])
+        
+        with col2:
+            default_view = st.selectbox("Default View", ["Bar Chart", "Map", "Time Series", "Heatmap"])
+            data_points = st.slider("Max Data Points", 100, 10000, 1000)
+        
+        st.subheader("Export Settings")
+        export_format = st.multiselect(
+            "Export Formats",
+            ["CSV", "Excel", "JSON", "PDF", "PNG"],
+            default=["CSV", "JSON"]
+        )
+        
+        if st.button("Save Settings", type="primary"):
+            st.success("Settings saved successfully!")
+        
+        st.subheader("System Information")
+        st.write(f"**Streamlit Version:** {st.__version__}")
+        st.write(f"**Pandas Version:** {pd.__version__}")
+        st.write(f"**Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # ============================================================================
 # RUN THE APP
