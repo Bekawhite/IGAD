@@ -13,5 +13,6 @@ tensorflow
 tqdm
 shap
 cryptography
+optuna
 
 
