@@ -11,6 +11,7 @@ notebook
 ipython
 tensorflow
 tqdm
-
+shap
 cryptography
+
 
