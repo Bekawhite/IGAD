@@ -14,5 +14,6 @@ tqdm
 shap
 cryptography
 optuna
+ networkx
 
 
