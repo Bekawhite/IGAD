@@ -9,4 +9,7 @@ joblib
 jupyter
 notebook
 ipython
+
 tqdm
+
+cryptography
