@@ -9,7 +9,8 @@ joblib
 jupyter
 notebook
 ipython
-
+tensorflow
 tqdm
 
 cryptography
+
